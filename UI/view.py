@@ -30,7 +30,7 @@ class View:
         self.txt_titolo = ft.Text(value="Gestione Vendita Biciclette", size=30, weight=ft.FontWeight.BOLD)
 
         # Riga 1
-        self.dd_category = ft.Dropdown(label="Categoria", width=200) # TODO: Gestire il dropdown
+        self.dd_category = ft.Dropdown(label="Categoria", width=200, disabled = True)
 
         self.dp1 = ft.DatePicker(
             on_change=lambda e: print(f"Giorno selezionato: {self.dp1.value}"),
