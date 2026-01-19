@@ -1,13 +1,14 @@
 from dataclasses import dataclass
 
 @dataclass()
-class Prodotto:
+class Connessione:
     id: int
     product_name: str
+    num_vendite: int
 
 
     def __str__(self):
-        return f"{self.id}, {self.product_name}"
+        return f"Connessione({self.id}, {self.product_name}, {self.num_vendite})"
 
 
     def __hash__(self):

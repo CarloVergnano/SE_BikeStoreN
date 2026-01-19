@@ -8,9 +8,6 @@ class Controller:
     def __init__(self, view: View, model: Model):
         self._view = view
         self._model = model
-        self.categorie = []
-        self.categoria_selezionata = None
-        self.prodotti = []
         self._connessione_db = DBConnect.get_connection()
         if self._connessione_db is None:
             self._view.show_alert("❌ Errore di connessione al database")
@@ -39,63 +36,81 @@ class Controller:
         self._view.dd_category.disabled = False
         self._view.update()
 
+    def popola_categorie(self):
+        self._view.dd_category.options.clear()
+
+        categorie = self._model.get_categorie()
+
+        if categorie:
+            for c in categorie:
+                self._view.dd_category.options.append(ft.dropdown.Option(key=c.id, text=c.category_name))
+        else:
+            self._view.show_alert("Errore nel caricamento categorie.")
+
+        self._view.update()
+
     def handle_crea_grafo(self, e):
         """ Handler per gestire creazione del grafo """
-        self.categoria_selezionata = self._view.dd_category.value
-        if self.categoria_selezionata is None:
-            self._view.show_alert("Selezionare una categoria.")
-            return
-        self.prodotti = self._model.get_prodotti(self.categoria_selezionata)
-        if self._view.dp1.value is None or self._view.dp2.value is None:
-            self._view.show_alert("Selezionare le date")
-            return
-        start_data = str(self._view.dp1.value.date())
-        end_data = str(self._view.dp2.value.date())
-        self._model.get_vendite(start_data, end_data, self.categoria_selezionata)
-        nodi, rami = self._model.crea_grafo()
+        categoria_selezionata = self._view.dd_category.value
+        data_inizio = self._view.dp1.value
+        data_fine = self._view.dp2.value
+        grafo = self._model.crea_grafo(categoria_selezionata, data_inizio, data_fine)
+        num_nodi = grafo.number_of_nodes()
+        num_archi = grafo.number_of_edges()
         self._view.txt_risultato.controls.clear()
-        self._view.txt_risultato.controls.append(ft.Text(f"Date selezionate:"))
-        self._view.txt_risultato.controls.append(ft.Text(f"Start date: {start_data}"))
-        self._view.txt_risultato.controls.append(ft.Text(f"End date: {end_data}"))
-        self._view.txt_risultato.controls.append(ft.Text(f"Grafo correttamente creato"))
-        self._view.txt_risultato.controls.append(ft.Text(f"Numero nodi: {nodi}"))
-        self._view.txt_risultato.controls.append(ft.Text(f"Numero archi: {rami}"))
+        self._view.txt_risultato.controls.append(
+            ft.Text(f"Date selezionate: "))
+        self._view.txt_risultato.controls.append(
+            ft.Text(f"Start date: {data_inizio.year}-{data_inizio.month}-{data_inizio.day}"))
+        self._view.txt_risultato.controls.append(
+            ft.Text(f"End date: {data_fine.year}-{data_fine.month}-{data_fine.day}"))
+        self._view.txt_risultato.controls.append(
+            ft.Text("Grafo correttamente creato")
+        )
+        self._view.txt_risultato.controls.append(
+            ft.Text(f"Numero di nodi: {num_nodi}")
+        )
+        self._view.txt_risultato.controls.append(
+            ft.Text(f"Numero di archi: {num_archi}")
+        )
         self._view.update()
+
 
     def handle_best_prodotti(self, e):
         """ Handler per gestire la ricerca dei prodotti migliori """
-        best_seller = self._model.prodotti_best_seller()
-        self._view.txt_risultato.controls.append(ft.Text(f" "))
-        self._view.txt_risultato.controls.append(ft.Text(f"I cinque prodotti più venduti sono:"))
-        for prodotto in best_seller:
-            self._view.txt_risultato.controls.append(ft.Text(f"{self._model.prodotto_to_nome(prodotto.product_id)} with score {self._model.calcola_peso_nodo(prodotto.product_id)}"))
+        valori = {}
+        categoria_selezionata = self._view.dd_category.value
+        data_inizio = self._view.dp1.value
+        data_fine = self._view.dp2.value
+        prodotti = self._model.get_prodotti(categoria_selezionata)
+        grafo = self._model.crea_grafo(categoria_selezionata, data_inizio, data_fine)
+        for prodotto in grafo:
+            valore = self._model.calcola_peso_nodo(prodotto)
+            valori[prodotto] = valore
+        sorted_valori = sorted(valori.items(), key=lambda x: x[1], reverse=True)
+        self._view.txt_risultato.controls.append(
+            ft.Text("I 5 prodotti più venduti sono:")
+        )
+        count = 0
+        sorted_valori_id = []
+        for i in range (len(sorted_valori)):
+            sorted_valori_id.append(sorted_valori[i][0])
+
+        prodotti_dict = {}
+        for i in range(len(prodotti)):
+            prodotti_dict[prodotti[i].id] = prodotti[i].product_name
+
+
+        for prodotto in sorted_valori_id:
+            if prodotto in prodotti_dict and count < 5:
+
+                count += 1
+                self._view.txt_risultato.controls.append(
+                    ft.Text(f"{prodotti_dict[prodotto]} with score {valori[prodotto]}")
+                )
         self._view.update()
 
-        self._view.dd_prodotto_iniziale.options.clear()
-        self._view.dd_prodotto_finale.options.clear()
-        for prodotto in self.prodotti:
-            self._view.dd_prodotto_iniziale.options.append(ft.dropdown.Option(prodotto.id, f"{prodotto.product_name} ({prodotto.id})"))
-            self._view.dd_prodotto_finale.options.append(ft.dropdown.Option(prodotto.id, f"{prodotto.product_name} ({prodotto.id})"))
-        self._view.update()
+
 
     def handle_cerca_cammino(self, e):
         """ Handler per gestire il problema ricorsivo di ricerca del cammino """
-        lunghezza_cammino = self._view.txt_lunghezza_cammino.value
-        prodotto_iniziale = self._view.dd_prodotto_iniziale.value
-        prodotto_finale = self._view.dd_prodotto_finale.value
-        controllo_inserimento_tastiera = True
-        if lunghezza_cammino is None or lunghezza_cammino == "":
-            self._view.show_alert("Inserire lunghezza del cammino.")
-            controllo_inserimento_tastiera = False
-            return
-        if prodotto_iniziale is None or prodotto_finale is None:
-            self._view.show_alert("selezionare prodotto")
-            controllo_inserimento_tastiera = False
-            return
-        try:
-            lunghezza_cammino = int(lunghezza_cammino)
-        except (ValueError, TypeError):
-            self._view.show_alert("Inserire lunghezza del cammino in un formato corretto")
-            controllo_inserimento_tastiera = False
-        if controllo_inserimento_tastiera:
-            print(self._model.trova_cammino_ottimo(prodotto_iniziale, prodotto_finale, lunghezza_cammino))
