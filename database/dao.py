@@ -64,7 +64,7 @@ class DAO:
         conn = DBConnect.get_connection()
         results = []
         cursor = conn.cursor(dictionary=True)
-        query = """ select p.id , p.product_name, sum(oi.quantity) as num_vendite
+        query = """ select p.id , p.product_name, count(oi.quantity) as num_vendite
                     from product p, category c, order_item oi, `order` o  
                     where p.category_id = c.id and c.id = %s and oi.product_id = p.id
                     and o.id = oi.order_id and o.order_date between %s and %s
